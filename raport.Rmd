@@ -1,0 +1,253 @@
+---
+title: "Zaawansowana Eksploracja Danych - raport"
+author: "Szymon Pankowski"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+## Podsumowanie wyników
+Raport z przedmiotu Zaawansowana Eksploracja Danych.
+
+
+## 1. Ładowanie bibliotek:
+<!-- Used Library Load -->
+```{r library, results='hide',warning=FALSE,message=FALSE}
+library(DT)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(reshape2)
+library(plotly)
+# Pretty Table
+#knitr::opts_chunk$set(echo = TRUE)
+
+prettyTable <- function(table_df, round_columns=numeric(), round_digits=2) {
+  DT::datatable(table_df, style="bootstrap", filter = "top", rownames = FALSE, extensions = "Buttons", options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) %>%
+    formatRound(round_columns, round_digits)
+}
+
+```
+## 2. Załadowanie danych 
+W celu załadowania należy upewnić się, że plik z danymi all_summary.csv znajduje się w folderze data, lub zmienić ścieżkę docelową poniżej.
+
+<!-- Load Data -->
+```{r load_data, include=TRUE}
+my_data <-read.csv(file='./data/all_summary.csv', sep = ";", 
+                   header = TRUE, stringsAsFactors = FALSE,nrow = 1000)
+
+```
+
+## 3. Podsumowanie danych
+
+<!-- Data Summary -->
+```{r summary_data, echo = T, results = 'hide'}
+str(my_data)
+summary(my_data)
+head(my_data)
+
+```
+## 3.Kod usuwający z danych wiersze posiadające wartość zmiennej res_name równą:
+“UNK”, “UNX”, “UNL”, “DUM”, “N”, “BLOB”, “ALA”, “ARG”, “ASN”, “ASP”, “CYS”, “GLN”, “GLU”, “GLY”, “HIS”, “ILE”, “LEU”, “LYS”, “MET”, “MSE”, “PHE”, “PRO”,“SEC”, “SER”, “THR”, “TRP”, “TYR”, “VAL”, “DA”, “DG”, “DT”, “DC”, “DU”, “A”, “G”, “T”, “C”, “U”, “HOH”, “H20”, “WAT”
+
+```{r my_data_skip, echo=TRUE}
+my_data_skip <- my_data[ ! my_data$res_name %in% c('UNK', 'UNX', 'UNL', 'DUM', 'N', 'BLOB', 'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN','GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'MSE', 'PHE', 'PRO', 'SEC', 'SER','THR', 'TRP', 'TYR', 'VAL', 'DA', 'DG', 'DT', 'DC', 'DU', 'A', 'G', 'T', 'C', 'U', 'HOH', 'H20', 'WAT'), ]
+
+```
+
+## 4. Istotne kolumny z danymi.
+Tworzę osobną zmienną do przetrzymywania istotnych kolumn; tj. column z pkt. poprzedniego, kolumny res_name oraz innych zawartych w zadaniach z ćwiczenia.
+
+<!-- Istotne kolumny:-->
+```{r rest_col, echo=TRUE}
+rest_col <- c('res_name','local_res_atom_non_h_count','local_res_atom_non_h_electron_sum',
+             'dict_atom_non_h_count','local_res_atom_non_h_electron_sum',
+              'dict_atom_non_h_electron_sum','local_volume','local_electrons','local_mean','local_std','local_min','local_max','local_skewness')
+
+```
+
+
+
+
+## 5. Zostaw tylko te dane, których kolumna zawiera 'part_'
+Przypisuję te kolumny do zmiennej my_data_skip_col. Dodatkowo sprawdzam, które w kolejności to kolumny 
+
+
+```{r my_data_skip_col, echo=TRUE}
+my_data_skip_col <- my_data_skip[ , grepl( "part_" , names( my_data_skip ) ) ]
+grepl( "part_" , names( my_data_skip ) )
+```
+
+## Dane po wyborze wyselekcjonowanych kolumnam:
+res_name, part_ (c(79:396),c(410:412)) oraz rest_col
+
+
+```{r select_col, echo=TRUE}
+select_col <- my_data_skip %>% select('res_name',c(79:396),c(410:412),rest_col)
+
+```
+
+## Oczyszczanie danych z wartości NA
+Liczba wierszy przed oczyszczeniem: 
+
+```{r nrow_przed_NA, echo=TRUE}
+#liczba col, przed pozbyciem się niepełnych danych
+nrow(select_col)
+```
+
+
+## Kod przetwarzający brakujące dane.
+
+Utworzona zostaje nowa zmienna: select_colno_NA
+```{r clear_NA, echo=TRUE}
+#lprzetwarzanie wartośći NA
+select_colno_NA <- select_col[complete.cases(select_col), ]
+```
+
+Liczba kolumn po oczyszczeniem:
+
+```{r nrow_po_NA, echo=TRUE}
+#liczba col, przed pozbyciem się niepełnych danych
+nrow(select_colno_NA)
+```
+
+## Podsumowanie obecnego zbioru:
+Funkcja summary, head, nrow, ncol, oraz str
+```{r summary_select_colno_NA, results='hide',warning=FALSE,message=FALSE}
+#Sekcję podsumowującą rozmiar zbioru i podstawowe statystyki.
+summary(select_colno_NA)
+head(select_colno_NA, 10)
+nrow(select_colno_NA)
+ncol(select_colno_NA)
+str(select_colno_NA)
+```
+
+
+## Kod ograniczający liczbę klas (res_name) do 50 najpopularniejszych wartości. pkt 7
+Utworzona zostaje nowa zmienna: res_name_50
+```{r res_name_50, results='hide',warning=FALSE,message=FALSE}
+# Korzystam z biblioteki dplr
+res_name_50 <- select_colno_NA %>% 
+  group_by(res_name) %>% 
+  summarise(SUM = n())  %>% arrange(desc(SUM)) %>% select(res_name)
+
+res_name_50 <- head(res_name_50, 50)
+```
+
+Tworzę selekcję danych. Tylko te z 50-cioma najpopularniejszymi klasami. 
+Do tego celu tworzę zmienną: strvariable
+
+```{r strvariable, results='hide',warning=FALSE,message=FALSE}
+# Przypisanie do zmiennej strvariable wartości res_name_50, w celu późniejszego użycia
+strvariable <- ''
+for(i in res_name_50){strvariable <- paste(i)}
+strvariable
+```
+
+Kod z danymi tylko 50 najpopularniejszych klas:
+
+```{r only50class,warning=FALSE,message=FALSE}
+# Wykorzystanie zmiennej strvariable
+only50class <- select_colno_NA[ select_colno_NA$res_name %in% c(strvariable), ]
+  
+only50class %>% group_by(res_name) %>% 
+  summarise(SUM = n())  %>% arrange(desc(SUM)) %>% select(res_name, SUM)
+
+# Liczba kolumn została zmniejszona poprzez wyelminowanie niepowatarzających się rzadkich ligandów
+nrow(only50class)
+
+```
+
+
+## Pkt 8. Sekcję sprawdzającą korelacje między zmiennymi;
+Sekcja ta powinna zawierać jakąś formę graficznej prezentacji korelacji.
+
+```{r only50class_num,results='hide', warning=FALSE,message=FALSE}
+head(only50class, 50)
+summary(only50class)
+str(only50class)
+# Wybranie tylko column numerycznych 
+nums <- unlist(lapply(only50class, is.numeric))  
+# Utworzenie nowej zmiennej
+only50class_num <- only50class[ , nums]
+# Analiza danych
+str(only50class_num)
+
+#Korelacja między zmiennymi (Ze względu na ogromną liczbę kolumn, dodatkowo ograniczam wynik do col od 2 do 8)
+cormat <- round(cor(only50class_num[,c(2:8)]),8)
+head(cormat)
+
+
+melted_cormat <- melt(cormat)
+head(melted_cormat)
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()
+
+```
+
+
+
+## 9 Określenie ile przykładów ma każda z klas (res_name).
+
+```{r only50class_count_example, warning=FALSE,message=FALSE}
+only50class %>% group_by(res_name) %>% 
+  summarise(SUM = n())  %>% arrange(desc(SUM)) %>% select(res_name, SUM)
+```
+
+## 10 Wykresy rozkładów liczby atomów:
+(local_res_atom_non_h_count) i elektronów (local_res_atom_non_h_electron_sum).
+W zadaniu zawarty został także pkt. 13 Interaktywny wykres lub animację.
+```{r ggplot_10, warning=FALSE,message=FALSE}
+
+only50class_grby <- only50class %>%
+  group_by(local_res_atom_non_h_electron_sum)   %>% 
+summarise(SUM = n())  %>% select(local_res_atom_non_h_electron_sum, SUM)
+       
+
+p <- ggplot(only50class_grby, aes(SUM, local_res_atom_non_h_electron_sum)) + 
+  geom_point()
+ggplotly(p)
+
+only50class_grby_at <- only50class %>%
+  group_by(local_res_atom_non_h_count)   %>% 
+  summarise(SUM = n())  %>% select(local_res_atom_non_h_count, SUM)
+
+
+p <- ggplot(only50class_grby_at, aes(SUM, local_res_atom_non_h_count)) + 
+  geom_point()
+ggplotly(p)
+
+```
+
+Podsumowanie: 
+Najwięcej danych bo około 193 ma wartość zmiennej local_res_atom_non_h_count równą 1.
+
+
+
+## 12 Tabelę pokazującą 10 klas z największą niezgodnością liczby atomów
+
+(local_res_atom_non_h_count vs dict_atom_non_h_count) i tabelę pokazującą 10 klas z największą niezgodnością liczby elektronów (local_res_atom_non_h_electron_sum vs dict_atom_non_h_electron_sum;)
+
+local_res_atom_non_h_count vs dict_atom_non_h_count
+local_res_atom_non_h_electron_sum vs dict_atom_non_h_electron_sum
+
+```{r tab_12, warning=FALSE,message=FALSE}
+#Atom vs Atom
+atom_vs_atom <- only50class %>% mutate(Difference = abs(local_res_atom_non_h_count-dict_atom_non_h_count)) %>%
+  group_by(Difference) %>% arrange(desc(Difference)) %>% select (res_name,Difference,local_res_atom_non_h_count,dict_atom_non_h_count)
+
+prettyTable(head(atom_vs_atom,10))
+
+
+#Electron vs Electron
+electron_vs_electron <- only50class %>% 
+  mutate(Difference = abs(local_res_atom_non_h_electron_sum-dict_atom_non_h_electron_sum)) %>%
+  group_by(Difference) %>% arrange(desc(Difference)) %>% select (res_name,Difference,local_res_atom_non_h_electron_sum,dict_atom_non_h_electron_sum)
+
+prettyTable(head(electron_vs_electron,10))
+
+
+```
+
